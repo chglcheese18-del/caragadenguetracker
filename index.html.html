@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Caraga Dengue Hotspot Tracker</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Turf.js/6.5.0/turf.min.js"></script>
+<style>
+  :root{
+    --ink:#1c2b24; --paper:#f6f4ee; --line:#d8d2c2; --accent:#0f6b4c;
+    --danger:#b3311c; --panel:#ffffffee;
+    padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+  }
+  html,body{height:100%;margin:0;font-family:-apple-system,Segoe UI,Roboto,sans-serif;background:var(--paper);color:var(--ink);}
+  #hdr{position:relative;z-index:1000;padding:10px 16px calc(10px + env(safe-area-inset-top,0px));background:var(--ink);color:#fff;}
+  #hdr h1{margin:0;font-size:16px;font-weight:700;}
+  #hdr p{margin:2px 0 0;font-size:11.5px;opacity:.8;}
+  #map{position:absolute;top:56px;bottom:0;left:0;right:0;}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,.15);padding:8px 10px;font-size:12px;}
+  .legend .row{display:flex;align-items:center;gap:6px;margin:2px 0;}
+  .legend .sw{width:14px;height:14px;border-radius:3px;flex:none;}
+  select,input{font-size:12px;padding:4px 6px;border-radius:5px;border:1px solid var(--line);}
+  .src{font-size:10px;color:#555;margin-top:4px;line-height:1.4;}
+  .popup-title{font-weight:700;margin-bottom:2px;}
+  .badge{display:inline-block;padding:1px 6px;border-radius:10px;font-size:10px;color:#fff;margin-left:4px;}
+</style>
+</head>
+<body>
+<div id="hdr">
+  <h1>🦟 Caraga Dengue Hotspot Tracker</h1>
+  <p>IT 412 Web GIS Final Project · Butuan City / Caraga Region · Web Mapping + Spatial Analysis Layer</p>
+</div>
+<div id="map"></div>
+
+<script>
+// ---------- REAL DATA (all sourced, dates noted in popups) ----------
+const provinces = {"type":"FeatureCollection","features":[{"type":"Feature","properties":{"province":"Agusan del Norte"},"geometry":{"type":"Polygon","coordinates":[[[125.745,9.286],[125.743,9.387],[125.7,9.43],[125.554,9.466],[125.558,9.426],[125.545,9.406],[125.56,9.39],[125.536,9.358],[125.53,9.327],[125.486,9.454],[125.453,9.439],[125.461,9.384],[125.504,9.302],[125.505,9.244],[125.531,9.194],[125.52,9.142],[125.536,9.079],[125.512,9.028],[125.524,9.011],[125.43,8.976],[125.359,8.993],[125.288,8.99],[125.237,9.031],[125.208,9.094],[125.238,8.988],[125.227,8.984],[125.221,8.922],[125.263,8.842],[125.241,8.841],[125.24,8.719],[125.282,8.741],[125.457,8.74],[125.457,8.727],[125.474,8.727],[125.475,8.708],[125.515,8.699],[125.669,8.701],[125.674,8.733],[125.634,8.89],[125.666,8.939],[125.694,8.948],[125.694,8.979],[125.745,9.072],[125.768,9.164],[125.745,9.286]]]}},{"type":"Feature","properties":{"province":"Agusan del Sur"},"geometry":{"type":"Polygon","coordinates":[[[126.228,8.0],[126.257,8.028],[126.25,8.04],[126.263,8.06],[126.237,8.059],[126.237,8.132],[126.155,8.223],[126.183,8.245],[126.165,8.26],[126.2,8.288],[126.125,8.323],[126.129,8.363],[126.114,8.391],[126.082,8.407],[126.064,8.429],[126.074,8.445],[126.055,8.448],[126.016,8.499],[126.033,8.539],[126.027,8.569],[126.0,8.571],[126.0,8.6],[126.035,8.633],[125.97,8.74],[125.949,8.814],[125.899,8.869],[125.885,9.047],[125.866,9.093],[125.775,9.223],[125.756,9.23],[125.768,9.164],[125.745,9.072],[125.694,8.979],[125.694,8.948],[125.666,8.939],[125.634,8.89],[125.674,8.733],[125.669,8.701],[125.515,8.699],[125.475,8.708],[125.474,8.727],[125.457,8.727],[125.457,8.74],[125.282,8.741],[125.24,8.719],[125.238,8.66],[125.171,8.582],[125.261,8.579],[125.249,8.557],[125.248,8.478],[125.284,8.423],[125.275,8.355],[125.332,8.297],[125.368,8.185],[125.384,8.18],[125.435,8.109],[125.437,8.086],[125.406,8.076],[125.393,8.043],[125.38,8.043],[125.379,8.003],[125.753,7.998],[125.776,7.952],[125.806,7.97],[125.851,7.967],[125.876,7.936],[125.901,7.931],[125.918,7.965],[125.911,8.0],[125.98,7.999],[125.995,7.958],[126.033,7.932],[126.143,7.995],[126.168,7.981],[126.228,8.0]]]}},{"type":"Feature","properties":{"province":"Surigao del Norte"},"geometry":{"type":"MultiPolygon","coordinates":[[[[126.062,10.062],[126.029,10.028],[126.021,9.976],[125.973,9.923],[125.96,9.881],[125.974,9.864],[125.952,9.848],[126.032,9.745],[126.026,9.766],[126.113,9.748],[126.112,9.757],[126.164,9.787],[126.134,9.845],[126.095,9.853],[126.121,9.879],[126.062,10.062]]],[[[125.92,9.873],[125.933,9.884],[125.951,9.895],[125.98,9.948],[125.929,9.908],[125.907,9.88],[125.92,9.873]]],[[[125.51,9.888],[125.552,9.861],[125.534,9.89],[125.51,9.888]]],[[[125.894,9.893],[125.909,9.912],[125.899,9.919],[125.892,9.907],[125.894,9.893]]],[[[125.595,9.805],[125.622,9.827],[125.653,9.826],[125.68,9.843],[125.681,9.854],[125.657,9.85],[125.639,9.89],[125.642,9.916],[125.622,9.909],[125.595,9.854],[125.578,9.839],[125.598,9.826],[125.587,9.821],[125.595,9.805]]],[[[125.611,9.912],[125.565,9.9],[125.583,9.86],[125.595,9.89],[125.609,9.888],[125.611,9.912]]],[[[125.928,9.873],[125.954,9.851],[125.968,9.866],[125.958,9.879],[125.959,9.888],[125.946,9.891],[125.928,9.873]]],[[[125.884,9.497],[125.861,9.534],[125.79,9.558],[125.767,9.553],[125.74,9.567],[125.736,9.583],[125.645,9.608],[125.608,9.634],[125.591,9.701],[125.609,9.708],[125.619,9.751],[125.599,9.754],[125.595,9.741],[125.573,9.745],[125.576,9.758],[125.559,9.752],[125.556,9.764],[125.506,9.766],[125.496,9.793],[125.457,9.802],[125.436,9.823],[125.44,9.796],[125.402,9.769],[125.397,9.749],[125.392,9.655],[125.453,9.439],[125.486,9.454],[125.474,9.516],[125.49,9.538],[125.544,9.529],[125.569,9.512],[125.554,9.466],[125.7,9.43],[125.724,9.413],[125.743,9.387],[125.749,9.326],[125.879,9.469],[125.884,9.497]]],[[[125.714,9.799],[125.697,9.787],[125.701,9.764],[125.719,9.756],[125.733,9.777],[125.714,9.799]]],[[[125.636,9.798],[125.638,9.769],[125.667,9.755],[125.646,9.789],[125.636,9.798]]],[[[125.561,9.767],[125.56,9.777],[125.54,9.772],[125.561,9.767]]],[[[125.626,9.74],[125.642,9.759],[125.636,9.769],[125.622,9.753],[125.626,9.74]]],[[[125.616,9.753],[125.614,9.766],[125.606,9.765],[125.604,9.755],[125.616,9.753]]],[[[125.986,9.683],[125.962,9.691],[125.96,9.722],[125.97,9.729],[125.942,9.748],[125.946,9.757],[125.915,9.757],[125.921,9.727],[125.906,9.72],[125.927,9.654],[125.909,9.653],[125.897,9.617],[125.914,9.603],[125.913,9.583],[125.936,9.579],[125.938,9.56],[125.963,9.568],[125.971,9.585],[125.965,9.615],[125.986,9.641],[125.986,9.683]]],[[[125.695,9.753],[125.692,9.738],[125.705,9.74],[125.695,9.753]]],[[[126.03,9.734],[126.011,9.715],[126.007,9.689],[126.028,9.704],[126.068,9.707],[126.065,9.725],[126.03,9.734]]],[[[125.982,9.737],[125.981,9.719],[125.966,9.714],[125.974,9.69],[126.009,9.703],[125.982,9.737]]],[[[125.655,9.664],[125.657,9.722],[125.629,9.728],[125.622,9.711],[125.638,9.706],[125.655,9.664]]]]}},{"type":"Feature","properties":{"province":"Surigao del Sur"},"geometry":{"type":"MultiPolygon","coordinates":[[[[126.228,8.0],[126.352,8.002],[126.351,7.933],[126.366,7.92],[126.386,7.954],[126.406,7.954],[126.435,7.985],[126.407,8.003],[126.441,8.095],[126.429,8.108],[126.44,8.126],[126.433,8.155],[126.444,8.165],[126.44,8.202],[126.456,8.239],[126.441,8.247],[126.393,8.205],[126.341,8.184],[126.317,8.223],[126.383,8.292],[126.363,8.313],[126.33,8.314],[126.319,8.352],[126.356,8.37],[126.38,8.409],[126.374,8.432],[126.354,8.424],[126.35,8.434],[126.362,8.467],[126.392,8.467],[126.388,8.512],[126.352,8.519],[126.359,8.547],[126.289,8.529],[126.259,8.552],[126.211,8.557],[126.19,8.554],[126.227,8.531],[126.219,8.523],[126.165,8.54],[126.143,8.53],[126.123,8.543],[126.114,8.568],[126.125,8.583],[126.083,8.61],[126.096,8.642],[126.127,8.654],[126.138,8.672],[126.189,8.698],[126.241,8.694],[126.212,8.711],[126.212,8.732],[126.241,8.748],[126.236,8.757],[126.255,8.773],[126.303,8.784],[126.307,8.813],[126.334,8.84],[126.307,8.881],[126.325,8.897],[126.322,8.921],[126.294,8.923],[126.294,8.933],[126.31,8.936],[126.307,8.956],[126.286,8.977],[126.271,8.97],[126.196,9.082],[126.169,9.087],[126.158,9.105],[126.203,9.309],[126.17,9.309],[126.119,9.257],[126.057,9.233],[125.983,9.327],[125.973,9.355],[125.986,9.381],[125.981,9.403],[125.949,9.371],[125.894,9.414],[125.896,9.429],[125.916,9.439],[125.949,9.44],[125.959,9.483],[125.931,9.457],[125.917,9.496],[125.884,9.497],[125.879,9.469],[125.744,9.318],[125.756,9.23],[125.775,9.223],[125.866,9.093],[125.885,9.047],[125.899,8.869],[125.949,8.814],[125.97,8.74],[126.035,8.633],[126.0,8.6],[126.0,8.571],[126.027,8.569],[126.033,8.539],[126.016,8.499],[126.055,8.448],[126.074,8.445],[126.064,8.429],[126.082,8.407],[126.114,8.391],[126.129,8.363],[126.125,8.323],[126.2,8.288],[126.165,8.26],[126.183,8.245],[126.155,8.223],[126.237,8.132],[126.237,8.059],[126.263,8.06],[126.25,8.04],[126.257,8.028],[126.228,8.0]]],[[[126.012,9.43],[125.993,9.416],[126.024,9.414],[126.012,9.43]]]]}},{"type":"Feature","properties":{"province":"Dinagat Islands"},"geometry":{"type":"MultiPolygon","coordinates":[[[[125.511,10.186],[125.477,10.125],[125.481,10.104],[125.498,10.101],[125.497,10.079],[125.51,10.062],[125.528,10.062],[125.539,10.081],[125.573,10.066],[125.567,10.084],[125.585,10.082],[125.6,10.059],[125.569,10.018],[125.578,10.003],[125.569,9.989],[125.608,9.984],[125.602,9.965],[125.646,9.931],[125.643,9.882],[125.66,9.852],[125.677,9.868],[125.701,9.867],[125.707,9.899],[125.673,9.917],[125.676,9.931],[125.657,9.947],[125.679,9.962],[125.673,9.99],[125.695,10.048],[125.692,10.08],[125.664,10.114],[125.663,10.154],[125.675,10.154],[125.676,10.167],[125.651,10.167],[125.644,10.185],[125.662,10.197],[125.644,10.243],[125.655,10.277],[125.646,10.295],[125.677,10.395],[125.642,10.472],[125.609,10.432],[125.596,10.365],[125.582,10.359],[125.552,10.385],[125.552,10.32],[125.514,10.321],[125.521,10.246],[125.512,10.242],[125.541,10.204],[125.526,10.191],[125.523,10.202],[125.499,10.208],[125.511,10.186]]],[[[125.49,10.422],[125.502,10.446],[125.472,10.462],[125.463,10.457],[125.477,10.428],[125.49,10.422]]],[[[125.519,10.027],[125.518,10.008],[125.538,10.009],[125.519,10.027]]]]}}]};
+
+// DOH-13 dengue cases as of July 25, 2026 (source: PNA, "DOH monitors, responds to dengue cases in Caraga Region")
+const caseData = {
+  "Agusan del Norte": 79, "Agusan del Sur": 492, "Dinagat Islands": 74,
+  "Surigao del Norte": 242, "Surigao del Sur": 363
+};
+const priorYearTotal = 5813, currentTotal = 1813; // region-wide, same period prior year vs 2026
+
+// Historical hotspot barangays named in DOH-13's 2019 hotspot advisory (source: PIA Caraga)
+const hotspots = [
+  {name:"Brgy. Abilan, Buenavista",prov:"Agusan del Norte",lat:8.97,lng:125.41,year:2019},
+  {name:"Brgy. Pinana-an, Las Nieves",prov:"Agusan del Norte",lat:8.7351,lng:125.601,year:2019},
+  {name:"Brgy. Daywan, Claver",prov:"Surigao del Norte",lat:9.5667,lng:125.7333,year:2019},
+  {name:"Brgy. Maligaya, Rosario",prov:"Agusan del Sur",lat:8.3814,lng:126.0015,year:2019},
+  {name:"Brgys. Canlanipa, Luna, Washington, San Juan — Surigao City",prov:"Surigao del Norte",lat:9.79,lng:125.5,year:2019}
+];
+
+// Referral hospitals, approximate to provincial-capital city centers (exact facility coordinates need field survey)
+const facilities = [
+  {name:"Butuan City referral hospitals (regional center)",lat:8.9475,lng:125.5406,note:"Butuan City — 1,653 cases in 2024 (separate HUC, not counted in province totals above)"},
+  {name:"Agusan del Norte Provincial Hospital area — Cabadbaran",lat:9.1228,lng:125.5346},
+  {name:"Agusan del Sur Provincial Hospital area — Prosperidad",lat:8.6,lng:125.9167},
+  {name:"Surigao del Norte Provincial Hospital area — Surigao City",lat:9.79,lng:125.5},
+  {name:"Surigao del Sur Provincial Hospital area — Tandag City",lat:9.0778,lng:126.1989},
+  {name:"Dinagat Islands Provincial Hospital area — San Jose",lat:10.0095,lng:125.5708}
+];
+
+// ---------- MAP ----------
+const map = L.map('map',{zoomControl:false}).setView([9.1,125.9],8);
+L.control.zoom({position:'bottomleft'}).addTo(map);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+  attribution:'&copy; OpenStreetMap contributors | Boundaries: PSGC via faeldon/philippines-json-maps | Dengue data: DOH-13/PNA (as of Jul 25, 2026)',maxZoom:14
+}).addTo(map);
+
+function colorFor(n){ return n>450?'#7a0d0d': n>300?'#b3311c': n>150?'#e0713e': n>75?'#f0b429':'#f5d98a'; }
+
+// ---- Turf-based spatial analysis: cases per 1,000 km² (density) ----
+const provLayer = L.geoJSON(provinces,{
+  style: f => ({fillColor:colorFor(caseData[f.properties.province]), color:'#3a3a2e', weight:1, fillOpacity:.68}),
+  onEachFeature:(f,layer)=>{
+    const p = f.properties.province, cases = caseData[p];
+    const areaKm2 = turf.area(f)/1e6;                 // Turf spatial analysis
+    const density = (cases/areaKm2*1000).toFixed(1);   // cases per 1,000 km²
+    layer.bindPopup(
+      `<div class="popup-title">${p}</div>`+
+      `Dengue cases (as of Jul 25, 2026): <b>${cases}</b><br>`+
+      `Area (computed via Turf.js): ${areaKm2.toFixed(0)} km²<br>`+
+      `Case density: <b>${density}</b> cases / 1,000 km²<br>`+
+      `<span class="src">Source: DOH-13 via Philippine News Agency, region total down from ${priorYearTotal} to ${currentTotal} vs. same period last year.</span>`
+    );
+    layer.province = p;
+  }
+}).addTo(map);
+
+const hotspotLayer = L.layerGroup(hotspots.map(h=>
+  L.circleMarker([h.lat,h.lng],{radius:7,color:'#7a0d0d',fillColor:'#ff6a4d',fillOpacity:.9,weight:2})
+    .bindPopup(`<div class="popup-title">${h.name}</div>${h.prov}<br>Flagged as a dengue hotspot in ${h.year}<span class="badge" style="background:#7a0d0d">historical</span><br><span class="src">Source: DOH-13 / PIA Caraga hotspot advisory, ${h.year}. Marker placed at municipality/city center — not exact barangay centroid.</span>`)
+)).addTo(map);
+
+// ---- Turf-based spatial analysis: 15km catchment buffer around each referral facility ----
+const facMarkers = [], catchmentLayer = L.layerGroup();
+facilities.forEach(fac=>{
+  const pt = turf.point([fac.lng,fac.lat]);
+  const buf = turf.buffer(pt, 15, {units:'kilometers'});
+  L.geoJSON(buf,{style:{color:'#0f6b4c',weight:1,dashArray:'4,3',fillOpacity:.06}}).addTo(catchmentLayer);
+  const m = L.marker([fac.lat,fac.lng],{icon:L.divIcon({className:'',html:'🏥',iconSize:[22,22]})})
+    .bindPopup(`<div class="popup-title">${fac.name}</div>${fac.note||''}<br><span class="src">Approx. location (provincial-capital city center). 15 km catchment shown — exact facility coordinates require field verification.</span>`);
+  facMarkers.push(m);
+});
+const facilityLayer = L.layerGroup(facMarkers).addTo(map);
+catchmentLayer.addTo(map);
+
+// ---- Spatial insight: province centroid distance to nearest facility ----
+let insight = '';
+provinces.features.forEach(f=>{
+  const c = turf.centroid(f);
+  let minD = Infinity;
+  facilities.forEach(fac=>{ const d = turf.distance(c, turf.point([fac.lng,fac.lat]), {units:'kilometers'}); if(d<minD) minD=d; });
+  if(minD>25) insight += `${f.properties.province} (~${minD.toFixed(0)} km), `;
+});
+
+L.control.layers(null,{
+  "Dengue cases by province (choropleth)": provLayer,
+  "Historical hotspot barangays (2019)": hotspotLayer,
+  "Referral hospitals": facilityLayer,
+  "15km facility catchment (Turf buffer)": catchmentLayer
+},{collapsed:false, position:'topright'}).addTo(map);
+
+// ---- Province jump / search ----
+const jump = L.control({position:'topleft'});
+jump.onAdd = function(){
+  const div = L.DomUtil.create('div','panel');
+  div.innerHTML = `<b>Jump to province</b><br><select id="provSel" style="margin-top:4px;width:190px;">
+    <option value="">— select —</option>` +
+    provinces.features.map(f=>`<option>${f.properties.province}</option>`).join('') + `</select>
+    <div class="src">Type: DOH-13 case data (Jul 2026) · Boundaries: PSGC 2023</div>`;
+  L.DomEvent.disableClickPropagation(div);
+  return div;
+};
+jump.addTo(map);
+setTimeout(()=>{
+  document.getElementById('provSel').addEventListener('change', e=>{
+    const name = e.target.value; if(!name) return;
+    provLayer.eachLayer(l=>{ if(l.province===name){ map.fitBounds(l.getBounds(),{maxZoom:10}); l.openPopup(); } });
+  });
+},300);
+
+// ---- Legend ----
+const legend = L.control({position:'bottomright'});
+legend.onAdd = function(){
+  const div = L.DomUtil.create('div','panel legend');
+  div.innerHTML = `<b>Dengue cases (as of Jul 25, 2026)</b>`+
+    [[451,'7a0d0d','450+'],[301,'b3311c','301–450'],[151,'e0713e','151–300'],[76,'f0b429','76–150'],[0,'f5d98a','0–75']]
+    .map(([_,c,l])=>`<div class="row"><span class="sw" style="background:#${c}"></span>${l} cases</div>`).join('')+
+    `<div class="src">Provinces &gt;25 km (centroid) from nearest referral hospital: <b>${insight? insight.slice(0,-2):'none'}</b> — Turf.js distance analysis.</div>`;
+  return div;
+};
+legend.addTo(map);
+</script>
+</body>
+</html>
